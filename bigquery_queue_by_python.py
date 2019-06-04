@@ -13,10 +13,13 @@
 # ---
 
 # +
-class bq_jobrunner :
+from google.cloud import bigquery
 
+class bq_jobrunner :
+    
+    
     def __init__(self,project_id: str,credentials_path: str,location: str):
-        from google.cloud import bigquery
+       
         import os
         self.project_id = project_id
         self.location = location
@@ -68,7 +71,35 @@ class bq_jobrunner :
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
         
-    
+    def execute(self):
+        from joblib import Parallel, delayed
+        while len(self.jobs) != len(self.processed_jobs):
+            print(len(self.processed_jobs),"jobs have been processed out of",len(self.jobs),"jobs.")
+            self.queue_jobs()
+            for job_id in self.queue:
+                self.run_job(job_id)
+            
+        else:
+            print("Finished all jobs.")
+            
+            
+    def render_graph(self):
+        from graphviz import Digraph
+        G = Digraph(format='png')
+        G.attr('node', shape='circle')
+
+        for j in self.jobs:
+            G.node(str(j), self.jobs[j]['common_name'])
+            
+        for j in self.jobs:
+            for d in self.jobs[j]['dependent_query']:
+               G.edge(str(d), str(j))
+
+        G.render(view = True)
+
+
+##TODO parallel processing
+
 #     def execute(self):
 #         from joblib import Parallel, delayed
 #         while len(self.jobs) != len(self.processed_jobs):
@@ -81,28 +112,15 @@ class bq_jobrunner :
             
 #         else:
 #             print("Finished all jobs.")
+        
+        
+# class MulHelper(object):
+#     def __init__(self, cls, mtd_name):
+#         self.cls = cls
+#         self.mtd_name = mtd_name
 
-    def execute(self):
-        from joblib import Parallel, delayed
-        while len(self.jobs) != len(self.processed_jobs):
-            print(len(self.processed_jobs),"jobs have been processed out of",len(self.jobs),"jobs.")
-            self.queue_jobs()
-            for job_id in self.queue:
-                self.run_job(job_id)
-            
-        else:
-            print("Finished all jobs.")
-
-            
-class MulHelper(object):
-    def __init__(self, cls, mtd_name):
-        self.cls = cls
-        self.mtd_name = mtd_name
-
-    def __call__(self, *args, **kwargs):
-        return getattr(self.cls, self.mtd_name)(*args, **kwargs)
-
-
+#     def __call__(self, *args, **kwargs):
+#         return getattr(self.cls, self.mtd_name)(*args, **kwargs)
 # -
 
 
@@ -145,5 +163,7 @@ group by data_kbn
 a.compose_query(4,sql4,"bq_test","query_4",common_name='group by',dependent_query=[3])
 
 a.execute()
+
+a.render_graph()
 
 
