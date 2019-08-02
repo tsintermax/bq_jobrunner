@@ -1,5 +1,5 @@
 graphviz==0.10.1
-setuptools==41.0.1
 protobuf==3.9.0
+setuptools==41.0.1
 google-cloud==0.34.0
 google-cloud-bigquery==1.15.0
