@@ -14,9 +14,8 @@ class BQJobrunner:
         self.jobs = {}
         self.processed_jobs = []
 
-    def compose_query(self, query_id: int, sql_str: str, dest_dataset: str,
-                      dest_table: str, dependent_query: list =[],
-                      common_name=''):
+    def compose_query(self, query_id: int, sql_str: str, dest_dataset: str, dest_table: str,
+        dependent_query: list = [], common_name=''):
         job_config = bigquery.QueryJobConfig()
         job_config.destination = self.client.dataset(dest_dataset).table(dest_table)
         job_config.create_disposition = 'CREATE_IF_NEEDED'
@@ -83,7 +82,5 @@ class BQJobrunner:
         G.render(view=True)
 
     def get_query_string(self, file_path: str) -> str:
-        file = open(file_path, 'r')
-        bq_file = file.read()
-        file.close()
-        return bq_file
+        with open(file_path, 'r') as f:
+            return f.read()
