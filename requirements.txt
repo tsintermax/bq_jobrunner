@@ -1,3 +1,5 @@
+re
+json
 graphviz
 setuptools
 protobuf
