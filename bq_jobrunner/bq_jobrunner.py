@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+import re
+import json
 from graphviz import Digraph
 from google.cloud import bigquery
 
@@ -56,7 +58,9 @@ class BQJobrunner:
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
 
-    def execute(self):
+    def execute(self, export_json: bool = True):
+        if export_json:
+            self.export_json()
         while len(self.jobs) != len(self.processed_jobs):
             print("{} jobs have been processed out of {} jobs".format(
                 len(self.processed_jobs),
@@ -84,3 +88,24 @@ class BQJobrunner:
     def get_query_string(self, file_path: str) -> str:
         with open(file_path, 'r') as f:
             return f.read()
+
+    def export_json(self):
+        data = dict()
+        for job_id in self.jobs.keys():
+            query = self.jobs[job_id]['sql']
+            source_paths = list(set(re.findall('`(.+)`', query)))
+
+            orig_target_path = self.jobs[job_id]['job_config'].destination
+            target_project = orig_target_path.project
+            target_dataset_id = orig_target_path.dataset_id
+            target_table_id = orig_target_path.table_id
+            target_path = '{}.{}.{}'.format(
+                target_project, target_dataset_id, target_table_id)
+
+            data[str(job_id)] = {
+                'from': source_paths,
+                'to': target_path
+            }
+
+        with open('table_dependencies.json', 'w') as f:
+            json.dump(data, f)
