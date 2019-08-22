@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup
 
-REQUIRES = ["re", "json", "graphviz", "protobuf", "setuptools",
+REQUIRES = [ "graphviz", "protobuf", "setuptools",
             "google-cloud", "google-cloud-bigquery"]
 
 CLASSIFIERS = """\
@@ -20,7 +20,7 @@ Operating System :: MacOS
 
 MAJOR = 0
 MINOR = 0
-MICRO = 2
+MICRO = 3
 VERSION = '%d.%d.%d' % (MAJOR, MINOR, MICRO)
 
 
