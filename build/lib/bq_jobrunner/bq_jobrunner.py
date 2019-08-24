@@ -58,19 +58,22 @@ class BQJobrunner:
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
 
-    def execute(self, export_json: bool = True):
+    def execute(self, run_queries: bool = True, export_json: bool = True, render_graph: bool = False):
         if export_json:
             self.export_json()
-        while len(self.jobs) != len(self.processed_jobs):
-            print("{} jobs have been processed out of {} jobs".format(
-                len(self.processed_jobs),
-                len(self.jobs)
-            ))
-            self.queue_jobs()
-            for job_id in self.queue:
-                self.run_job(job_id)
-        else:
-            print("Finished all jobs.")
+        if render_graph:
+            self.render_graph()
+        if run_queries:
+            while len(self.jobs) != len(self.processed_jobs):
+                print("{} jobs have been processed out of {} jobs".format(
+                    len(self.processed_jobs),
+                    len(self.jobs)
+                ))
+                self.queue_jobs()
+                for job_id in self.queue:
+                    self.run_job(job_id)
+            else:
+                print("Finished all jobs.")
 
     def render_graph(self):
         G = Digraph(name='bq_tables', format='png')
