@@ -1,6 +1,6 @@
 Metadata-Version: 1.2
 Name: bq-jobrunner
-Version: 0.0.4
+Version: 0.0.5
 Summary: Enables to easily query multiple BigQuery queries with any dependencies.
 Home-page: UNKNOWN
 Author: Takuto Sugisaki
