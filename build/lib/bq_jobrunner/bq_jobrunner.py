@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
-import re
 import json
 from graphviz import Digraph
 from google.cloud import bigquery
@@ -15,16 +14,18 @@ class BQJobrunner:
         self.client = bigquery.Client()
         self.jobs = {}
         self.processed_jobs = []
+        self.to_json = {}
 
     def compose_query(self, query_id: int, sql_str: str, dest_dataset: str, dest_table: str,
-        dependent_query: list = [], common_name=''):
+                      dependent_query: list = [], common_name=''):
         job_config = bigquery.QueryJobConfig()
-        job_config.destination = self.client.dataset(dest_dataset).table(dest_table)
         job_config.create_disposition = 'CREATE_IF_NEEDED'
+        job_config.destination = self.client.dataset(
+            dest_dataset).table(dest_table)
         job_config.write_disposition = 'WRITE_TRUNCATE'
         job = {
             "query_id": query_id,
-            "sql": self.get_query_string(sql_str),
+            "sql": self.__get_query_string(sql_str),
             "job_config": job_config,
             "dependent_query": dependent_query,
             "is_finished": False,
@@ -37,7 +38,8 @@ class BQJobrunner:
         self.queue = []
         for _, v in self.jobs.items():
             dependent_queries = []
-            dependent_queries = set(v['dependent_query']) - set(self.processed_jobs)
+            dependent_queries = set(
+                v['dependent_query']) - set(self.processed_jobs)
             if (v['is_finished'] is False) and (not dependent_queries):
                 self.queue.append(v['query_id'])
 
@@ -50,19 +52,33 @@ class BQJobrunner:
         query_job = self.client.query(
             job["sql"],
             location=self.location,
-            job_config=job["job_config"])
+            job_config=job["job_config"]
+        )
         query_job.result()
         print('Query "{}" has been finished. {:.2f} GBs are processed.'.format(
             job["common_name"], query_job.total_bytes_processed / 1073741824
         ))
+
+        dest_table = bigquery.Table(job['job_config'].destination)
+        table = self.client.get_table(dest_table)
+        self.to_json[str(job_id)] = {
+            'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
+            'to': self.__table_ref_to_string(table.reference),
+            'table_info': {
+                'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
+                'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
+                'description': table.description,
+                'num_bytes': table.num_bytes,
+                'num_rows': table.num_rows
+            }
+        }
+
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
 
     def execute(self, run_queries: bool = True, export_json: bool = True, render_graph: bool = False):
-        if export_json:
-            self.export_json()
         if render_graph:
-            self.render_graph()
+            self.__render_graph()
         if run_queries:
             while len(self.jobs) != len(self.processed_jobs):
                 print("{} jobs have been processed out of {} jobs".format(
@@ -74,8 +90,10 @@ class BQJobrunner:
                     self.run_job(job_id)
             else:
                 print("Finished all jobs.")
+            if export_json:
+                self.__export_json()
 
-    def render_graph(self):
+    def __render_graph(self):
         G = Digraph(name='bq_tables', format='png')
         G.attr('node', shape='circle')
 
@@ -88,27 +106,16 @@ class BQJobrunner:
 
         G.render(view=True)
 
-    def get_query_string(self, file_path: str) -> str:
+    def __get_query_string(self, file_path: str) -> str:
         with open(file_path, 'r') as f:
             return f.read()
 
-    def export_json(self):
-        data = dict()
-        for job_id in self.jobs.keys():
-            query = self.jobs[job_id]['sql']
-            source_paths = list(set(re.findall('`(.+)`', query)))
+    def __table_ref_to_string(self, table_ref):
+        project = table_ref.project
+        dataset_id = table_ref.dataset_id
+        table_id = table_ref.table_id
+        return '{}.{}.{}'.format(project, dataset_id, table_id)
 
-            orig_target_path = self.jobs[job_id]['job_config'].destination
-            target_project = orig_target_path.project
-            target_dataset_id = orig_target_path.dataset_id
-            target_table_id = orig_target_path.table_id
-            target_path = '{}.{}.{}'.format(
-                target_project, target_dataset_id, target_table_id)
-
-            data[str(job_id)] = {
-                'from': source_paths,
-                'to': target_path
-            }
-
+    def __export_json(self):
         with open('table_dependencies.json', 'w') as f:
-            json.dump(data, f)
+            json.dump(self.to_json, f)
