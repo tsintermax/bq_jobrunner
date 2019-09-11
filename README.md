@@ -22,5 +22,5 @@ python setup.py sdist & python setup.py bdist_wheel
 pip install .
 ```
 
-## Contributers
+## Contributors
 Takuto Sugisaki ([@tsintermax](https://github.com/tsintermax))
