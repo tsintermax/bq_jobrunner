@@ -4,6 +4,9 @@ import os
 import json
 from graphviz import Digraph
 from google.cloud import bigquery
+from networkx.drawing.nx_pydot import read_dot
+from networkx.algorithms.cycles import find_cycle
+from networkx import NetworkXNoCycle
 
 
 class BQJobrunner:
@@ -32,6 +35,31 @@ class BQJobrunner:
             "common_name": common_name
         }
         self.jobs[query_id] = job
+
+    def compose_query_by_digraph(self, graph):
+        if self.jobs:
+            raise ValueError("jobs are not empty")
+        try:
+            if find_cycle(graph):
+                raise ValueError("cycle found in graph, not a dag")
+        except NetworkXNoCycle:
+            pass
+        for node in graph.nodes():
+            query_id = int(node)
+            path = graph.node[node]['label']
+            job = {
+                "query_id": query_id,
+                "sql": self.__get_query_string(path),
+                "job_config": bigquery.QueryJobConfig(),
+                "dependent_query": list(map(int, graph.edge[node].keys())),
+                "is_finished": False,
+                "common_name": path
+            }
+            self.jobs[query_id] = job
+
+    def compose_query_by_dot_path(self, dot_path: str):
+        g = read_dot(dot_path)
+        self.compose_query_by_digraph(g)
 
     def queue_jobs(self):
         """Queue all jobs which has no dependency"""

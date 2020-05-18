@@ -3,3 +3,5 @@ setuptools
 protobuf
 google-cloud
 google-cloud-bigquery
+networkx
+pydotplus
