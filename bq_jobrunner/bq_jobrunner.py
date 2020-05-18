@@ -10,10 +10,11 @@ from networkx import NetworkXNoCycle
 
 
 class BQJobrunner:
-    def __init__(self, project_id: str, credentials_path: str, location: str):
+    def __init__(self, project_id: str, credentials_path: str='', location: str='asia-northeast1'):
         self.project_id = project_id
         self.location = location
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        if credentials_path:
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
         self.client = bigquery.Client()
         self.jobs = {}
         self.processed_jobs = []

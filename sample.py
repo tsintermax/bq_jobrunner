@@ -6,7 +6,7 @@ from bq_jobrunner.bq_jobrunner import BQJobrunner
 project_id = 'project_id'
 credential_path = '~/config/.credentials.json'
 location = 'asia-northeast1'
-bq_jobs = BQJobrunner(project_id, credential_path, location)
+bq_jobs = BQJobrunner(project_id, location=location)
 
 bq_jobs.compose_query(
     query_id=1,
@@ -25,5 +25,4 @@ bq_jobs.compose_query(
     common_name=''
 )
 
-bq_jobs.render_graph()
-bq_jobs.execute()
+bq_jobs.execute(run_queries=False, export_json=True, render_graph=True)
