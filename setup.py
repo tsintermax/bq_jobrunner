@@ -4,7 +4,7 @@ from setuptools import setup
 
 REQUIRES = [ "graphviz", "protobuf", "setuptools",
             "google-cloud", "google-cloud-bigquery",
-            "networkx" "pydotplus" ]
+            "networkx", "pydotplus", "pydot" ]
 
 CLASSIFIERS = """\
 Intended Audience :: Science/Research
