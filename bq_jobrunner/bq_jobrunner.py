@@ -46,12 +46,12 @@ class BQJobrunner:
             pass
         for node in graph.nodes():
             query_id = int(node)
-            path = graph.node[node]['label']
+            path = eval(graph.nodes[node]['label'])
             job = {
                 "query_id": query_id,
                 "sql": self.__get_query_string(path),
                 "job_config": bigquery.QueryJobConfig(),
-                "dependent_query": list(map(int, graph.edge[node].keys())),
+                "dependent_query": list(map(int, [edge[1] for edge in graph.edges(node)])),
                 "is_finished": False,
                 "common_name": path
             }
