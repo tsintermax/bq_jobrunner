@@ -88,19 +88,20 @@ class BQJobrunner:
             job["common_name"], query_job.total_bytes_processed / 1073741824
         ))
 
-        dest_table = bigquery.Table(job['job_config'].destination)
-        table = self.client.get_table(dest_table)
-        self.to_json[str(job_id)] = {
-            'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
-            'to': self.__table_ref_to_string(table.reference),
-            'table_info': {
-                'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
-                'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
-                'description': table.description,
-                'num_bytes': table.num_bytes,
-                'num_rows': table.num_rows
+        if job['job_config'].destination:
+            dest_table = bigquery.Table()
+            table = self.client.get_table(dest_table)
+            self.to_json[str(job_id)] = {
+                'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
+                'to': self.__table_ref_to_string(table.reference),
+                'table_info': {
+                    'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
+                    'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
+                    'description': table.description,
+                    'num_bytes': table.num_bytes,
+                    'num_rows': table.num_rows
+                }
             }
-        }
 
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
