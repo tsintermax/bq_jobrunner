@@ -53,7 +53,7 @@ class BQJobrunner:
                 "query_id": query_id,
                 "sql": self.__get_query_string(path),
                 "job_config": bigquery.QueryJobConfig(),
-                "dependent_query": list(map(int, [edge[1] for edge in graph.edges(node)])),
+                "dependent_query": list(map(int, [edge[0] for edge in graph.in_edges(node)])),
                 "is_finished": False,
                 "common_name": path
             }
