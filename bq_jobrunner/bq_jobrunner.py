@@ -4,6 +4,9 @@ import os
 import json
 from graphviz import Digraph
 from google.cloud import bigquery
+from networkx.drawing.nx_pydot import read_dot
+from networkx.algorithms.cycles import find_cycle
+from networkx import NetworkXNoCycle
 
 
 class BQJobrunner:
@@ -33,6 +36,31 @@ class BQJobrunner:
         }
         self.jobs[query_id] = job
 
+    def compose_query_by_digraph(self, graph):
+        if self.jobs:
+            raise ValueError("jobs are not empty")
+        try:
+            if find_cycle(graph):
+                raise ValueError("cycle found in graph, not a dag")
+        except NetworkXNoCycle:
+            pass
+        for node in graph.nodes():
+            query_id = int(node)
+            path = eval(graph.nodes[node]['label'])
+            job = {
+                "query_id": query_id,
+                "sql": self.__get_query_string(path),
+                "job_config": bigquery.QueryJobConfig(),
+                "dependent_query": list(map(int, [edge[1] for edge in graph.edges(node)])),
+                "is_finished": False,
+                "common_name": path
+            }
+            self.jobs[query_id] = job
+
+    def compose_query_by_dot_path(self, dot_path: str):
+        g = read_dot(dot_path)
+        self.compose_query_by_digraph(g)
+
     def queue_jobs(self):
         """Queue all jobs which has no dependency"""
         self.queue = []
@@ -59,19 +87,20 @@ class BQJobrunner:
             job["common_name"], query_job.total_bytes_processed / 1073741824
         ))
 
-        dest_table = bigquery.Table(job['job_config'].destination)
-        table = self.client.get_table(dest_table)
-        self.to_json[str(job_id)] = {
-            'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
-            'to': self.__table_ref_to_string(table.reference),
-            'table_info': {
-                'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
-                'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
-                'description': table.description,
-                'num_bytes': table.num_bytes,
-                'num_rows': table.num_rows
+        if job['job_config'].destination:
+            dest_table = bigquery.Table()
+            table = self.client.get_table(dest_table)
+            self.to_json[str(job_id)] = {
+                'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
+                'to': self.__table_ref_to_string(table.reference),
+                'table_info': {
+                    'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
+                    'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
+                    'description': table.description,
+                    'num_bytes': table.num_bytes,
+                    'num_rows': table.num_rows
+                }
             }
-        }
 
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
