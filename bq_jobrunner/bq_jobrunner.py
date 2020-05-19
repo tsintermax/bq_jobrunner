@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import threading
 from graphviz import Digraph
 from google.cloud import bigquery
 from networkx.drawing.nx_pydot import read_dot
@@ -116,8 +117,13 @@ class BQJobrunner:
                     len(self.jobs)
                 ))
                 self.queue_jobs()
+                current_jobs = []
                 for job_id in self.queue:
-                    self.run_job(job_id)
+                    job = threading.Thread(target=self.run_job, args=(job_id,))
+                    current_jobs.append(job)
+                    job.start()
+                for job in current_jobs:
+                    job.join()
             else:
                 print("Finished all jobs.")
             if export_json:
