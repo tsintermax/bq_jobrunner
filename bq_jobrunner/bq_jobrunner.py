@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-import threading
+from concurrent.futures import ThreadPoolExecutor
 from graphviz import Digraph
 from google.cloud import bigquery
 from networkx.drawing.nx_pydot import read_dot
@@ -11,7 +11,8 @@ from networkx import NetworkXNoCycle
 
 
 class BQJobrunner:
-    def __init__(self, project_id: str, credentials_path: str='', location: str='asia-northeast1'):
+    def __init__(self, project_id: str, credentials_path: str='', location: str='asia-northeast1',
+                 replace_strings_dict={}):
         self.project_id = project_id
         self.location = location
         if credentials_path:
@@ -20,6 +21,7 @@ class BQJobrunner:
         self.jobs = {}
         self.processed_jobs = []
         self.to_json = {}
+        self.__replace_strings_dict = replace_strings_dict
 
     def compose_query(self, query_id: int, sql_str: str, dest_dataset: str, dest_table: str,
                       dependent_query: list = [], common_name=''):
@@ -118,12 +120,12 @@ class BQJobrunner:
                 ))
                 self.queue_jobs()
                 current_jobs = []
-                for job_id in self.queue:
-                    job = threading.Thread(target=self.run_job, args=(job_id,))
-                    current_jobs.append(job)
-                    job.start()
+                with ThreadPoolExecutor() as executer:
+                    for job_id in self.queue:
+                        job = executer.submit(self.run_job, job_id)
+                        current_jobs.append(job)
                 for job in current_jobs:
-                    job.join()
+                    job.result()
             else:
                 print("Finished all jobs.")
             if export_json:
@@ -144,7 +146,12 @@ class BQJobrunner:
 
     def __get_query_string(self, file_path: str) -> str:
         with open(file_path, 'r') as f:
-            return f.read()
+            query_string = f.read()
+            # Sort key to prevent replacing substrings.
+            for key, value in sorted(self.__replace_strings_dict.items(),
+                                     key=lambda x:x[0], reverse=True):
+                query_string = query_string.replace(key, value)
+            return query_string
 
     def __table_ref_to_string(self, table_ref):
         project = table_ref.project
