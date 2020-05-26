@@ -2,19 +2,26 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor
 from graphviz import Digraph
 from google.cloud import bigquery
+from networkx.drawing.nx_pydot import read_dot
+from networkx.algorithms.cycles import find_cycle
+from networkx import NetworkXNoCycle
 
 
 class BQJobrunner:
-    def __init__(self, project_id: str, credentials_path: str, location: str):
+    def __init__(self, project_id: str, credentials_path: str='', location: str='asia-northeast1',
+                 replace_strings_dict={}):
         self.project_id = project_id
         self.location = location
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        if credentials_path:
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
         self.client = bigquery.Client()
         self.jobs = {}
         self.processed_jobs = []
         self.to_json = {}
+        self.__replace_strings_dict = replace_strings_dict
 
     def compose_query(self, query_id: int, sql_str: str, dest_dataset: str, dest_table: str,
                       dependent_query: list = [], common_name=''):
@@ -32,6 +39,31 @@ class BQJobrunner:
             "common_name": common_name
         }
         self.jobs[query_id] = job
+
+    def compose_query_by_digraph(self, graph):
+        if self.jobs:
+            raise ValueError("jobs are not empty")
+        try:
+            if find_cycle(graph):
+                raise ValueError("cycle found in graph, not a dag")
+        except NetworkXNoCycle:
+            pass
+        for node in graph.nodes():
+            query_id = int(node)
+            path = eval(graph.nodes[node]['label'])
+            job = {
+                "query_id": query_id,
+                "sql": self.__get_query_string(path),
+                "job_config": bigquery.QueryJobConfig(),
+                "dependent_query": list(map(int, [edge[0] for edge in graph.in_edges(node)])),
+                "is_finished": False,
+                "common_name": path
+            }
+            self.jobs[query_id] = job
+
+    def compose_query_by_dot_path(self, dot_path: str):
+        g = read_dot(dot_path)
+        self.compose_query_by_digraph(g)
 
     def queue_jobs(self):
         """Queue all jobs which has no dependency"""
@@ -59,19 +91,20 @@ class BQJobrunner:
             job["common_name"], query_job.total_bytes_processed / 1073741824
         ))
 
-        dest_table = bigquery.Table(job['job_config'].destination)
-        table = self.client.get_table(dest_table)
-        self.to_json[str(job_id)] = {
-            'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
-            'to': self.__table_ref_to_string(table.reference),
-            'table_info': {
-                'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
-                'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
-                'description': table.description,
-                'num_bytes': table.num_bytes,
-                'num_rows': table.num_rows
+        if job['job_config'].destination:
+            dest_table = bigquery.Table()
+            table = self.client.get_table(dest_table)
+            self.to_json[str(job_id)] = {
+                'from': [self.__table_ref_to_string(table_ref) for table_ref in query_job.referenced_tables],
+                'to': self.__table_ref_to_string(table.reference),
+                'table_info': {
+                    'created': table.created.strftime('%m/%d/%Y %H:%M:%S'),
+                    'modified': table.modified.strftime('%m/%d/%Y %H:%M:%S'),
+                    'description': table.description,
+                    'num_bytes': table.num_bytes,
+                    'num_rows': table.num_rows
+                }
             }
-        }
 
         self.jobs[job_id]["is_finished"] = True
         self.processed_jobs.append(job["query_id"])
@@ -86,8 +119,13 @@ class BQJobrunner:
                     len(self.jobs)
                 ))
                 self.queue_jobs()
-                for job_id in self.queue:
-                    self.run_job(job_id)
+                current_jobs = []
+                with ThreadPoolExecutor() as executer:
+                    for job_id in self.queue:
+                        job = executer.submit(self.run_job, job_id)
+                        current_jobs.append(job)
+                for job in current_jobs:
+                    job.result()
             else:
                 print("Finished all jobs.")
             if export_json:
@@ -108,7 +146,12 @@ class BQJobrunner:
 
     def __get_query_string(self, file_path: str) -> str:
         with open(file_path, 'r') as f:
-            return f.read()
+            query_string = f.read()
+            # Sort key to prevent replacing substrings.
+            for key, value in sorted(self.__replace_strings_dict.items(),
+                                     key=lambda x:x[0], reverse=True):
+                query_string = query_string.replace(key, value)
+            return query_string
 
     def __table_ref_to_string(self, table_ref):
         project = table_ref.project

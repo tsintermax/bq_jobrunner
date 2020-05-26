@@ -1,4 +1,9 @@
+.gitignore
+CHANGES.txt
+LICENSE
 README.md
+requirements.txt
+sample.py
 setup.py
 bq_jobrunner/__init__.py
 bq_jobrunner/bq_jobrunner.py
