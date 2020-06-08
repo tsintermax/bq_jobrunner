@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from graphviz import Digraph
 from google.cloud import bigquery
@@ -22,6 +23,9 @@ class BQJobrunner:
         self.processed_jobs = []
         self.to_json = {}
         self.__replace_strings_dict = replace_strings_dict
+        self.queue = set()
+        self.executor = ThreadPoolExecutor()
+        self.lock = threading.Lock()
 
     def compose_query(self, query_id: int, sql_str: str, dest_dataset: str, dest_table: str,
                       dependent_query: list = [], common_name=''):
@@ -67,13 +71,14 @@ class BQJobrunner:
 
     def queue_jobs(self):
         """Queue all jobs which has no dependency"""
-        self.queue = []
+        count = 0
         for _, v in self.jobs.items():
-            dependent_queries = []
             dependent_queries = set(
                 v['dependent_query']) - set(self.processed_jobs)
-            if (v['is_finished'] is False) and (not dependent_queries):
-                self.queue.append(v['query_id'])
+            if (v['is_finished'] is False) and (not dependent_queries) and (v['query_id'] not in self.queue):
+                self.queue.add(v['query_id'])
+                count += 1
+        print(f"queued {count} jobs!")
 
     def run_job(self, job_id):
         job = self.jobs[job_id]
@@ -106,28 +111,25 @@ class BQJobrunner:
                 }
             }
 
-        self.jobs[job_id]["is_finished"] = True
-        self.processed_jobs.append(job["query_id"])
+        with self.lock:
+            self.jobs[job_id]["is_finished"] = True
+            self.processed_jobs.append(job["query_id"])
+            self.queue_jobs()
+            for job_id in self.queue:
+                self.executer.submit(self.run_job, job_id)
+                self.queue.remove(job_id)
 
     def execute(self, run_queries: bool = True, export_json: bool = True, render_graph: bool = False):
         if render_graph:
             self.__render_graph()
         if run_queries:
-            while len(self.jobs) != len(self.processed_jobs):
-                print("{} jobs have been processed out of {} jobs".format(
-                    len(self.processed_jobs),
-                    len(self.jobs)
-                ))
-                self.queue_jobs()
-                current_jobs = []
-                with ThreadPoolExecutor() as executer:
-                    for job_id in self.queue:
-                        job = executer.submit(self.run_job, job_id)
-                        current_jobs.append(job)
-                for job in current_jobs:
-                    job.result()
-            else:
-                print("Finished all jobs.")
+            self.queue_jobs()
+            for job_id in self.queue:
+                self.executer.submit(self.run_job, job_id)
+                self.queue.remove(job_id)
+            self.executer.shutdown()
+            print("Finished all jobs.")
+
             if export_json:
                 self.__export_json()
 
