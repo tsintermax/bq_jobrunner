@@ -23,7 +23,7 @@ class BQJobrunner:
         self.processed_jobs = []
         self.to_json = {}
         self.__replace_strings_dict = replace_strings_dict
-        self.queue = set()
+        self.running_jobs = set()
         self.executor = ThreadPoolExecutor()
         self.lock = threading.Lock()
 
@@ -69,16 +69,19 @@ class BQJobrunner:
         g = read_dot(dot_path)
         self.compose_query_by_digraph(g)
 
-    def queue_jobs(self):
-        """Queue all jobs which has no dependency"""
+    def next_jobs(self):
+        """Return runnable jobs"""
         count = 0
+        next_jobs = []
         for _, v in self.jobs.items():
             dependent_queries = set(
                 v['dependent_query']) - set(self.processed_jobs)
-            if (v['is_finished'] is False) and (not dependent_queries) and (v['query_id'] not in self.queue):
-                self.queue.add(v['query_id'])
+            if (v['is_finished'] is False) and (not dependent_queries) and (v['query_id'] not in self.running_jobs):
+                self.running_jobs.add(v['query_id'])
+                next_jobs.append(v['query_id'])
                 count += 1
         print(f"queued {count} jobs!")
+        return next_jobs
 
     def run_job(self, job_id):
         job = self.jobs[job_id]
@@ -114,19 +117,16 @@ class BQJobrunner:
         with self.lock:
             self.jobs[job_id]["is_finished"] = True
             self.processed_jobs.append(job["query_id"])
-            self.queue_jobs()
-            for job_id in self.queue:
+            self.running_jobs.remove(job_id)
+            for job_id in self.queue_jobs():
                 self.executer.submit(self.run_job, job_id)
-                self.queue.remove(job_id)
 
     def execute(self, run_queries: bool = True, export_json: bool = True, render_graph: bool = False):
         if render_graph:
             self.__render_graph()
         if run_queries:
-            self.queue_jobs()
-            for job_id in self.queue:
+            for job_id in self.queue_jobs():
                 self.executer.submit(self.run_job, job_id)
-                self.queue.remove(job_id)
             self.executer.shutdown()
             print("Finished all jobs.")
 
