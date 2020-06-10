@@ -3,7 +3,7 @@
 import os
 import json
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from graphviz import Digraph
 from google.cloud import bigquery
 from networkx.drawing.nx_pydot import read_dot
@@ -24,7 +24,6 @@ class BQJobrunner:
         self.to_json = {}
         self.__replace_strings_dict = replace_strings_dict
         self.running_jobs = set()
-        self.executor = ThreadPoolExecutor()
         self.lock = threading.Lock()
 
     def compose_query(self, query_id: int, sql_str: str, dest_dataset: str, dest_table: str,
@@ -69,7 +68,7 @@ class BQJobrunner:
         g = read_dot(dot_path)
         self.compose_query_by_digraph(g)
 
-    def next_jobs(self):
+    def queue_jobs(self):
         """Return runnable jobs"""
         count = 0
         next_jobs = []
@@ -118,16 +117,23 @@ class BQJobrunner:
             self.jobs[job_id]["is_finished"] = True
             self.processed_jobs.append(job["query_id"])
             self.running_jobs.remove(job_id)
-            for job_id in self.queue_jobs():
-                self.executer.submit(self.run_job, job_id)
+            return self.queue_jobs()
 
     def execute(self, run_queries: bool = True, export_json: bool = True, render_graph: bool = False):
         if render_graph:
             self.__render_graph()
+
         if run_queries:
-            for job_id in self.queue_jobs():
-                self.executer.submit(self.run_job, job_id)
-            self.executer.shutdown()
+            futures = set()
+            with ThreadPoolExecutor() as pool:
+                for job_id in self.queue_jobs():
+                    futures.add(pool.submit(self.run_job, job_id))
+                while futures:
+                    for future in as_completed(futures):
+                        futures.remove(future)
+                        for job_id in future.result():
+                            futures.add(pool.submit(self.run_job, job_id))
+
             print("Finished all jobs.")
 
             if export_json:
