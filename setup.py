@@ -2,9 +2,16 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup
 
-REQUIRES = [ "graphviz", "protobuf", "setuptools",
-            "google-cloud", "google-cloud-bigquery",
-            "networkx", "pydotplus", "pydot" ]
+REQUIRES = [
+    "graphviz",
+    "protobuf",
+    "setuptools",
+    "google-cloud",
+    "google-cloud-bigquery",
+    "networkx",
+    "pydotplus",
+    "pydot",
+]
 
 CLASSIFIERS = """\
 Intended Audience :: Science/Research
@@ -22,28 +29,26 @@ Operating System :: MacOS
 MAJOR = 0
 MINOR = 1
 MICRO = 0
-VERSION = '%d.%d.%d' % (MAJOR, MINOR, MICRO)
+VERSION = "%d.%d.%d" % (MAJOR, MINOR, MICRO)
 
 
 def setup_package():
     setup(
-        name='bq_jobrunner',
-        maintainer='JDSC',
-        maintainer_email='takuto.sugisaki@jdsc.ai',
+        name="bq_jobrunner",
+        maintainer="JDSC",
+        maintainer_email="takuto.sugisaki@jdsc.ai",
         version=VERSION,
-        description='Enables to easily query multiple BigQuery queries with any dependencies.',
-        author='Takuto Sugisaki',
-        author_email='tsintermax@gmail.com',
-        license='MIT',
-        keywords='BigQuery automate query',
-        packages=[
-            'bq_jobrunner'
-        ],
+        description="Enables to easily query multiple BigQuery queries with any dependencies.",
+        author="Takuto Sugisaki",
+        author_email="tsintermax@gmail.com",
+        license="MIT",
+        keywords="BigQuery automate query",
+        packages=["bq_jobrunner"],
         install_requires=REQUIRES,
-        classifiers=[_f for _f in CLASSIFIERS.split('\n') if _f],
-        platforms=["Linux" "Mac OS-X", "Unix"]
+        classifiers=[_f for _f in CLASSIFIERS.split("\n") if _f],
+        platforms=["Linux" "Mac OS-X", "Unix"],
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setup_package()
