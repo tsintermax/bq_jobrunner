@@ -23,7 +23,7 @@ class BQJobrunner:
         self.location = location
         if credentials_path:
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-        self.client = bigquery.Client()
+        self.client = bigquery.Client(project_id)
         self.jobs = {}
         self.processed_jobs = []
         self.to_json = {}
