@@ -17,10 +17,9 @@ CLASSIFIERS = """\
 Intended Audience :: Science/Research
 Intended Audience :: Developers
 Programming Language :: Python
-Programming Language :: Python :: 3
-Programming Language :: Python :: 3.5
 Programming Language :: Python :: 3.6
 Programming Language :: Python :: 3.7
+Programming Language :: Python :: 3.8
 Topic :: Scientific/Engineering
 Operating System :: Unix
 Operating System :: MacOS
@@ -28,7 +27,7 @@ Operating System :: MacOS
 
 MAJOR = 0
 MINOR = 1
-MICRO = 0
+MICRO = 2
 VERSION = "%d.%d.%d" % (MAJOR, MINOR, MICRO)
 
 
