@@ -122,7 +122,7 @@ class BQJobrunner:
             print("Cache hit!")
 
         if job["job_config"].destination:
-            dest_table = bigquery.Table()
+            dest_table = bigquery.Table(job["job_config"].destination)
             table = self.client.get_table(dest_table)
             self.to_json[str(job_id)] = {
                 "from": [
